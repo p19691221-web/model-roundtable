@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>模型圓桌</title>
+<style>
+:root{--bg:#f4f3ee;--panel:#fffefb;--ink:#1f2a2e;--muted:#5a635f;--line:#d8d5cb;--acc:#256b5b;--acc-soft:#e3efe9;--warn:#9a5418;--warn-soft:#f6ead8;--err:#a33a2a}
+@media (prefers-color-scheme:dark){:root{--bg:#161c1e;--panel:#1f2729;--ink:#e6ebe8;--muted:#9aa6a1;--line:#34403f;--acc:#7fc4b0;--acc-soft:#22332f;--warn:#e3b23c;--warn-soft:#332a18;--err:#e58a7a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,-apple-system,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:20px 16px 60px}
+h1{font-size:24px;margin:0 0 4px}
+.lede{color:var(--muted);margin:0 0 16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:16px}
+.panel h2{font-size:17px;margin:0 0 10px}
+.hint{font-size:13px;color:var(--muted);margin:4px 0 0}
+label{display:block;font-size:13px;font-weight:600;margin:10px 0 4px}
+input,textarea,select{width:100%;font:inherit;color:inherit;background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px 10px}
+textarea{min-height:90px;resize:vertical}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row input{flex:1 1 220px}
+.btn{font:inherit;border:1px solid var(--line);background:var(--panel);color:var(--ink);border-radius:6px;padding:8px 14px;cursor:pointer}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:var(--panel);font-weight:700}
+.btn:disabled{opacity:.5;cursor:default}
+.chk{display:flex;gap:6px;align-items:center;font-size:13px;font-weight:400;margin-top:8px}
+.chk input{width:auto}
+.models{display:grid;gap:8px}
+.mrow{display:flex;gap:6px}
+.mrow input{flex:1}
+.steps{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+.step{font-size:13px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.step.on{border-color:var(--acc);color:var(--acc);font-weight:700;background:var(--acc-soft)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px}
+.card{border:1px solid var(--line);border-left:4px solid var(--acc);border-radius:8px;padding:12px;background:var(--panel);min-width:0}
+.card.crit{border-left-color:var(--warn);background:var(--warn-soft)}
+.card .who{font-size:13px;font-weight:700;margin-bottom:6px;display:flex;justify-content:space-between;gap:8px}
+.card .who span{font-family:ui-monospace,monospace;font-weight:400;color:var(--muted);overflow-wrap:anywhere}
+.out{white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}
+.err{color:var(--err)}
+.notice{font-size:13px;background:var(--warn-soft);border:1px solid var(--warn);border-radius:8px;padding:10px 12px;margin-bottom:16px}
+details summary{cursor:pointer;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>模型圓桌</h1>
+<p class="lede">同一個問題，先讓幾個模型各自獨立回答，再互相挑錯，最後由你判斷。</p>
+<div class="notice">問題與回答會經過 OpenRouter 送到各模型廠商。不要放入機密或未公開資料。金鑰只存在這台裝置的瀏覽器裡（若勾選記住）。模型都同意，不代表內容正確：重要事實請自己開原始來源核對。</div>
+
+<div class="panel">
+<details id="setup">
+<summary>設定：金鑰與模型</summary>
+<label for="key">OpenRouter API 金鑰</label>
+<input id="key" type="password" autocomplete="off" placeholder="sk-or-...">
+<label class="chk"><input type="checkbox" id="remember"> 記住在這台裝置</label>
+<label>參與的模型（2～4 個，填 OpenRouter 的模型 ID）</label>
+<div class="models" id="models"></div>
+<div class="row" style="margin-top:8px">
+<button class="btn" id="add">新增模型</button>
+<button class="btn" id="load">載入可用模型清單</button>
+</div>
+<p class="hint" id="loadmsg">模型 ID 例如 provider/model-name。按「載入可用模型清單」後，輸入框會出現建議。</p>
+<datalist id="modellist"></datalist>
+</details>
+</div>
+
+<div class="panel">
+<h2>問題</h2>
+<textarea id="q" placeholder="輸入要討論的問題"></textarea>
+<div class="steps"><span class="step" id="s1">1 各自回答</span><span class="step" id="s2">2 交叉批評</span><span class="step" id="s3">3 你判斷</span></div>
+<div class="row">
+<button class="btn primary" id="go1">開始：各自回答</button>
+<button class="btn" id="go2" disabled>下一步：交叉批評</button>
+<button class="btn" id="reset">清空</button>
+</div>
+</div>
+
+<div id="r1" hidden><h2>1 各自獨立回答</h2><p class="hint">模型互相看不到彼此的回答。</p><div class="grid" id="g1"></div></div>
+<div id="r2" hidden style="margin-top:20px"><h2>2 交叉批評</h2><p class="hint">每個模型只看其他人的回答（匿名為 A、B、C），只挑錯不重答。</p><div class="grid" id="g2"></div></div>
+<div id="r3" hidden class="panel" style="margin-top:20px">
+<h2>3 你的判斷</h2>
+<textarea id="notes" placeholder="你採信什麼、核對了哪些來源、還有什麼沒解決"></textarea>
+<div class="row" style="margin-top:8px">
+<button class="btn primary" id="export">下載紀錄（Markdown）</button>
+<button class="btn" id="copy">複製紀錄</button>
+</div>
+</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const API = "https://openrouter.ai/api/v1";
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} },
+  del(k){ try { localStorage.removeItem(k); } catch(e){} }
+};
+
+const SYS_ANSWER = "請獨立回答使用者的問題。分開寫出：一、你有把握的事實，盡量附上來源或依據；二、你的推論；三、你不確定或無法查證的部分。不要迎合提問者，不要誇大，不確定就直說。";
+const SYS_CRITIQUE = "你是審查者。以下是其他模型對同一問題的回答，以 A、B、C 匿名標示。只做審查，不要重新作答。逐條指出，並引用原句：一、沒有來源或可能錯誤的事實說法；二、推論跳躍；三、迎合提問者或誇大的說法；四、各回答之間互相矛盾之處。找不到問題就直說找不到，不要硬湊。";
+
+let state = { question:"", models:[], answers:{}, critiques:{} };
+
+function modelInputs(){ return [...document.querySelectorAll(".mid")]; }
+function addModel(v=""){
+  if (modelInputs().length >= 4) return;
+  const row = document.createElement("div"); row.className = "mrow";
+  const inp = document.createElement("input"); inp.className = "mid"; inp.value = v;
+  inp.setAttribute("list","modellist"); inp.placeholder = "provider/model-name";
+  inp.addEventListener("change", saveModels);
+  const del = document.createElement("button"); del.className = "btn"; del.textContent = "移除";
+  del.onclick = () => { row.remove(); saveModels(); };
+  row.append(inp, del); $("models").append(row);
+}
+function saveModels(){ store.set("rt_models", JSON.stringify(modelInputs().map(i=>i.value.trim()).filter(Boolean))); }
+
+function init(){
+  let saved = []; try { saved = JSON.parse(store.get("rt_models") || "[]"); } catch(e){}
+  if (!saved.length) saved = ["",""];
+  saved.forEach(addModel);
+  const k = store.get("rt_key"); if (k){ $("key").value = k; $("remember").checked = true; }
+  if (!k || saved.filter(Boolean).length < 2) $("setup").open = true;
+}
+
+$("remember").onchange = () => { if ($("remember").checked) store.set("rt_key",$("key").value.trim()); else store.del("rt_key"); };
+$("key").onchange = () => { if ($("remember").checked) store.set("rt_key",$("key").value.trim()); };
+$("add").onclick = () => addModel();
+
+$("load").onclick = async () => {
+  $("loadmsg").textContent = "載入中…";
+  try {
+    const r = await fetch(API + "/models");
+    const j = await r.json();
+    const dl = $("modellist"); dl.innerHTML = "";
+    (j.data || []).forEach(m => { const o = document.createElement("option"); o.value = m.id; o.label = m.name || m.id; dl.append(o); });
+    $("loadmsg").textContent = "已載入 " + (j.data||[]).length + " 個模型，點輸入框即可搜尋選擇。";
+  } catch(e){ $("loadmsg").textContent = "載入失敗：" + e.message; }
+};
+
+async function chat(model, system, user){
+  const key = $("key").value.trim();
+  const r = await fetch(API + "/chat/completions", {
+    method:"POST",
+    headers:{ "Authorization":"Bearer " + key, "Content-Type":"application/json", "X-Title":"Model Roundtable" },
+    body: JSON.stringify({ model, messages:[{role:"system",content:system},{role:"user",content:user}] })
+  });
+  const j = await r.json().catch(()=>({}));
+  if (!r.ok) throw new Error((j.error && j.error.message) || ("HTTP " + r.status));
+  const c = j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content;
+  if (!c) throw new Error("沒有回傳內容");
+  return c;
+}
+
+function card(gridId, label, model, cls){
+  const c = document.createElement("div"); c.className = "card" + (cls ? " " + cls : "");
+  const who = document.createElement("div"); who.className = "who";
+  const t = document.createElement("b"); t.textContent = label;
+  const m = document.createElement("span"); m.textContent = model;
+  who.append(t, m);
+  const out = document.createElement("div"); out.className = "out"; out.textContent = "思考中…";
+  c.append(who, out); $(gridId).append(c); return out;
+}
+const letter = i => String.fromCharCode(65 + i);
+function setStep(n){ ["s1","s2","s3"].forEach((s,i)=>$(s).classList.toggle("on", i+1===n)); }
+
+$("go1").onclick = async () => {
+  const q = $("q").value.trim();
+  const models = modelInputs().map(i=>i.value.trim()).filter(Boolean);
+  if (!$("key").value.trim()) { $("setup").open = true; alert("請先填 OpenRouter 金鑰"); return; }
+  if (models.length < 2) { $("setup").open = true; alert("至少要 2 個模型"); return; }
+  if (!q) { alert("請先輸入問題"); return; }
+  saveModels();
+  state = { question:q, models, answers:{}, critiques:{} };
+  $("g1").innerHTML = ""; $("g2").innerHTML = ""; $("r2").hidden = true; $("r3").hidden = true;
+  $("r1").hidden = false; setStep(1);
+  $("go1").disabled = true; $("go2").disabled = true;
+  await Promise.all(models.map(async (m,i) => {
+    const out = card("g1", "回答 " + letter(i), m);
+    try { const a = await chat(m, SYS_ANSWER, q); state.answers[m] = a; out.textContent = a; }
+    catch(e){ out.textContent = "失敗：" + e.message; out.classList.add("err"); }
+  }));
+  $("go1").disabled = false;
+  $("go2").disabled = Object.keys(state.answers).length < 2;
+};
+
+$("go2").onclick = async () => {
+  const ok = state.models.filter(m => state.answers[m]);
+  $("g2").innerHTML = ""; $("r2").hidden = false; setStep(2);
+  $("go2").disabled = true;
+  await Promise.all(ok.map(async m => {
+    const others = state.models.map((x,i)=>[x,i]).filter(([x]) => x !== m && state.answers[x]);
+    const body = "問題：\n" + state.question + "\n\n" + others.map(([x,i]) => "【回答 " + letter(i) + "】\n" + state.answers[x]).join("\n\n");
+    const i = state.models.indexOf(m);
+    const out = card("g2", "回答 " + letter(i) + " 的審查", m, "crit");
+    try { const c = await chat(m, SYS_CRITIQUE, body); state.critiques[m] = c; out.textContent = c; }
+    catch(e){ out.textContent = "失敗：" + e.message; out.classList.add("err"); }
+  }));
+  $("go2").disabled = false;
+  $("r3").hidden = false; setStep(3);
+};
+
+function record(){
+  const d = new Date().toLocaleString("zh-TW", { hour12:false });
+  let s = "# 模型圓桌紀錄\n\n時間：" + d + "\n\n## 問題\n\n" + state.question + "\n\n## 1 各自回答\n";
+  state.models.forEach((m,i) => { s += "\n### 回答 " + letter(i) + "（" + m + "）\n\n" + (state.answers[m] || "（失敗或未回答）") + "\n"; });
+  s += "\n## 2 交叉批評\n";
+  state.models.forEach((m,i) => { if (state.critiques[m]) s += "\n### " + letter(i) + " 的審查（" + m + "）\n\n" + state.critiques[m] + "\n"; });
+  s += "\n## 3 我的判斷\n\n" + ($("notes").value.trim() || "（未填）") + "\n";
+  return s;
+}
+$("export").onclick = () => {
+  const blob = new Blob([record()], { type:"text/markdown;charset=utf-8" });
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob);
+  a.download = "roundtable-" + new Date().toISOString().slice(0,10) + ".md"; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+$("copy").onclick = async () => {
+  try { await navigator.clipboard.writeText(record()); $("copy").textContent = "已複製"; setTimeout(()=>$("copy").textContent="複製紀錄",1500); }
+  catch(e){ alert("無法複製，請改用下載"); }
+};
+$("reset").onclick = () => {
+  if (!confirm("清空這一輪？")) return;
+  state = { question:"", models:[], answers:{}, critiques:{} };
+  $("q").value = ""; $("notes").value = "";
+  ["g1","g2"].forEach(g => $(g).innerHTML = "");
+  ["r1","r2","r3"].forEach(r => $(r).hidden = true);
+  ["s1","s2","s3"].forEach(s => $(s).classList.remove("on"));
+  $("go2").disabled = true;
+};
+init();
+</script>
+</body>
+</html>
